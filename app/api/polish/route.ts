@@ -2,22 +2,11 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    // 1. 读取 Vercel 环境变量
-    const apiKey = process.env.DEEPSEEK_API_KEY; 
-    
-    if (!apiKey) {
-      return NextResponse.json(
-        { error: "服务器端未配置 API Key (DEEPSEEK_API_KEY)" }, 
-        { status: 500 }
-      );
-    }
+    const apiKey = process.env.DEEPSEEK_API_KEY;
+    if (!apiKey) return NextResponse.json({ error: "API Key 未配置" }, { status: 500 });
 
     const { text } = await req.json();
-    if (!text) {
-      return NextResponse.json({ error: "请输入简历内容" }, { status: 400 });
-    }
 
-    // 2. 发送请求给 DeepSeek 官方 API
     const response = await fetch("https://api.deepseek.com/chat/completions", {
       method: "POST",
       headers: {
@@ -25,41 +14,64 @@ export async function POST(req: Request) {
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        // ⚠️ 关键点：DeepSeek 官方 V3 模型的名字叫 "deepseek-chat"
-        model: "deepseek-chat", 
+        model: "deepseek-chat",
         messages: [
           {
             role: "system",
-            content: "你是一个拥有10年经验的资深HR和简历优化专家。请把用户的简历润色得更专业、更有竞争力。使用通过、量化的语言，优化措辞。请直接输出润色后的Markdown内容，不要包含'好的'、'如下'等废话。"
+            content: `你是一个资深猎头和简历优化专家。请将用户的简历内容进行深度的专业化润色，并按严格的 JSON 格式输出。
+
+            【处理要求】
+            1. **去 Markdown**：内容中绝对不要出现 **、##、- 等 Markdown 符号。
+            2. **技能标签化**：将专业技能提取为短语标签（如 "Python", "React"）。
+            3. **经历结构化**：工作经历和项目经历要拆分为公司/项目名、职位、时间和具体内容。
+            4. **内容润色**：使用 STAR 法则（情境、任务、行动、结果）重写工作描述，使用量化数据。
+
+            【必须返回的 JSON 结构】
+            {
+              "baseInfo": {
+                "name": "用户姓名(如果没有则根据内容推断或填'求职者')",
+                "jobTitle": "目标职位(如'高级前端工程师')",
+                "summary": "一段简短有力的个人优势总结(50字以内)"
+              },
+              "skills": ["技能1", "技能2", "技能3", "技能4"],
+              "workExperience": [
+                {
+                  "company": "公司名称",
+                  "role": "职位名称",
+                  "time": "时间段 (如 2021.01 - 至今)",
+                  "desc": [
+                    "优化后的工作内容第一点...",
+                    "优化后的工作内容第二点..."
+                  ]
+                }
+              ],
+              "projectExperience": [
+                 {
+                  "name": "项目名称",
+                  "role": "担任角色",
+                  "desc": [
+                    "项目描述及成果..."
+                  ]
+                }
+              ]
+            }
+            `
           },
-          {
-            role: "user",
-            content: text
-          }
+          { role: "user", content: text }
         ],
-        temperature: 0.7, // 0.7 适合创意润色，1.3 适合写代码
-        stream: false
+        response_format: { type: 'json_object' }, 
+        temperature: 0.7,
       }),
     });
 
     const data = await response.json();
+    if (!response.ok) return NextResponse.json({ error: "API调用失败" }, { status: 500 });
 
-    // 3. 错误处理：如果 DeepSeek 官方返回错误（比如 401 Key 无效，402 没余额）
-    if (!response.ok) {
-      console.error("DeepSeek API Error:", data);
-      const errorMsg = data.error?.message || "API 调用失败";
-      return NextResponse.json({ error: errorMsg }, { status: response.status });
-    }
-
-    // 4. 返回结果
-    const resultText = data.choices?.[0]?.message?.content;
-    return NextResponse.json({ result: resultText });
+    const jsonString = data.choices?.[0]?.message?.content;
+    const parsedData = JSON.parse(jsonString);
+    return NextResponse.json({ result: parsedData });
 
   } catch (error: any) {
-    console.error("Server Error:", error);
-    return NextResponse.json(
-      { error: "服务器内部错误，请检查 Vercel 后台日志" }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
