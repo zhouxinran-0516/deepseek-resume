@@ -232,7 +232,7 @@ export default function Home() {
         boxShadow: "0 4px 20px rgba(0,0,0,0.05)" 
       }}>
         <h2 style={{ fontSize: 28, fontWeight: "bold", marginBottom: 8, color: "#1e293b" }}>
-          🤖 AI面试官
+           AI面试官
         </h2>
         <p style={{ color: "#64748b", marginBottom: 30, fontSize: 16 }}>
           根据目标岗位生成针对性面试问题，并提供回答反馈
